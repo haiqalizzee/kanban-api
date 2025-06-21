@@ -8,7 +8,9 @@ const {
     updateBoard,
     deleteBoard,
     addMember,
-    removeMember
+    removeMember,
+    getBoardNotes,
+    updateBoardNotes
 } = require('../controllers/boardController');
 
 // Apply auth middleware to all routes
@@ -24,5 +26,9 @@ router.delete('/:id', deleteBoard);
 // Member management
 router.post('/:id/members', addMember);
 router.delete('/:id/members', removeMember);
+
+// Notes management
+router.get('/:id/notes', getBoardNotes);
+router.put('/:id/notes', updateBoardNotes);
 
 module.exports = router;

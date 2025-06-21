@@ -57,14 +57,31 @@ exports.getBoard = async (req, res) => {
 // Create new board
 exports.createBoard = async (req, res) => {
     try {
-        const { title, description, backgroundColor, isPublic } = req.body;
+        const { title, description, backgroundColor, isPublic, notes, members } = req.body;
+        
+        // Validate members if provided
+        if (members && Array.isArray(members)) {
+            const User = require('../models/user');
+            for (const memberId of members) {
+                const user = await User.findById(memberId);
+                if (!user) {
+                    return res.status(400).json({ message: `User with ID ${memberId} not found` });
+                }
+                // Prevent adding owner as member
+                if (memberId === req.user._id.toString()) {
+                    return res.status(400).json({ message: 'Cannot add yourself as a member (you are the owner)' });
+                }
+            }
+        }
         
         const board = new Board({
             title,
             description,
             owner: req.user._id,
+            members: members || [],
             backgroundColor,
-            isPublic
+            isPublic,
+            notes: notes || ''
         });
 
         const savedBoard = await board.save();
@@ -88,6 +105,7 @@ exports.createBoard = async (req, res) => {
 
         const populatedBoard = await Board.findById(savedBoard._id)
             .populate('owner', 'username email')
+            .populate('members', 'username email')
             .populate('columns');
 
         res.status(201).json(populatedBoard);
@@ -166,10 +184,24 @@ exports.addMember = async (req, res) => {
             return res.status(403).json({ message: 'Only board owner can add members' });
         }
 
-        if (!board.members.includes(userId)) {
-            board.members.push(userId);
-            await board.save();
+        // Validate that the user exists
+        const User = require('../models/user');
+        const userToAdd = await User.findById(userId);
+        if (!userToAdd) {
+            return res.status(404).json({ message: 'User not found' });
         }
+
+        // Check if user is already a member or owner
+        if (board.owner.toString() === userId) {
+            return res.status(400).json({ message: 'Cannot add owner as member' });
+        }
+
+        if (board.members.includes(userId)) {
+            return res.status(400).json({ message: 'User is already a member of this board' });
+        }
+
+        board.members.push(userId);
+        await board.save();
 
         const updatedBoard = await Board.findById(req.params.id)
             .populate('owner', 'username email')
@@ -204,6 +236,60 @@ exports.removeMember = async (req, res) => {
             .populate('members', 'username email');
 
         res.json(updatedBoard);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Get board notes
+exports.getBoardNotes = async (req, res) => {
+    try {
+        const board = await Board.findById(req.params.id);
+        
+        if (!board) {
+            return res.status(404).json({ message: 'Board not found' });
+        }
+
+        // Check if user has access to board
+        const hasAccess = board.owner.toString() === req.user._id.toString() ||
+                         board.members.some(member => member.toString() === req.user._id.toString()) ||
+                         board.isPublic;
+
+        if (!hasAccess) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        res.json({ notes: board.notes || '' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Update board notes
+exports.updateBoardNotes = async (req, res) => {
+    try {
+        const { notes } = req.body;
+        const board = await Board.findById(req.params.id);
+        
+        if (!board) {
+            return res.status(404).json({ message: 'Board not found' });
+        }
+
+        // Check if user has access to board (owner or member)
+        const hasAccess = board.owner.toString() === req.user._id.toString() ||
+                         board.members.some(member => member.toString() === req.user._id.toString());
+
+        if (!hasAccess) {
+            return res.status(403).json({ message: 'Access denied. Only board members can update notes' });
+        }
+
+        board.notes = notes || '';
+        await board.save();
+
+        res.json({ 
+            message: 'Notes updated successfully',
+            notes: board.notes 
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

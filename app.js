@@ -2,14 +2,20 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const connectDB = require('./config/db');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const boardRoutes = require('./routes/boardRoutes');
 const columnRoutes = require('./routes/columnRoutes');
 const cardRoutes = require('./routes/cardRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 dotenv.config();
+
+// Connect to MongoDB
+connectDB();
+
 const app = express();
 
 // Middleware
@@ -22,10 +28,27 @@ app.use('/api/auth', authRoutes);
 app.use('/api/boards', boardRoutes);
 app.use('/api/columns', columnRoutes);
 app.use('/api/cards', cardRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'Kanban API is running' });
+});
+
+// Root route
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Welcome to Kanban API', 
+        version: '1.0.0',
+        endpoints: {
+            health: '/api/health',
+            auth: '/api/auth',
+            boards: '/api/boards',
+            columns: '/api/columns',
+            cards: '/api/cards',
+            users: '/api/users'
+        }
+    });
 });
 
 // 404 handler
@@ -38,12 +61,5 @@ app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ message: 'Something went wrong!' });
 });
-
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB connection error:', err));
 
 module.exports = app;

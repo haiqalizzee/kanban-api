@@ -30,6 +30,11 @@ const boardSchema = new mongoose.Schema({
     isPublic: {
         type: Boolean,
         default: false
+    },
+    notes: {
+        type: String,
+        default: '',
+        trim: true
     }
 }, {
     timestamps: true

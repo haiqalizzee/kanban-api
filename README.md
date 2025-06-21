@@ -41,17 +41,23 @@ A RESTful API for a Kanban board application built with Node.js, Express, and Mo
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register a new user
+- `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
 
+### Users
+- `GET /api/users/search?query=username&limit=10` - Search users by username
+- `GET /api/users/profile` - Get current user profile
+- `PUT /api/users/profile` - Update username
+- `PUT /api/users/change-password` - Change user password
+
 ### Boards
-- `GET /api/boards` - Get all boards for authenticated user
-- `GET /api/boards/:id` - Get single board
+- `GET /api/boards` - Get all boards (owned or member of)
+- `GET /api/boards/:id` - Get board details
 - `POST /api/boards` - Create new board
-- `PUT /api/boards/:id` - Update board
-- `DELETE /api/boards/:id` - Delete board
-- `POST /api/boards/:id/members` - Add member to board
-- `DELETE /api/boards/:id/members` - Remove member from board
+- `PUT /api/boards/:id` - Update board (owner only)
+- `DELETE /api/boards/:id` - Delete board (owner only)
+- `POST /api/boards/:id/members` - Add member to board (owner only)
+- `DELETE /api/boards/:id/members` - Remove member from board (owner only)
 
 ### Columns
 - `GET /api/columns/board/:boardId` - Get all columns for a board
@@ -69,6 +75,221 @@ A RESTful API for a Kanban board application built with Node.js, Express, and Mo
 - `PUT /api/cards/:id/move` - Move card between columns
 - `POST /api/cards/:id/comments` - Add comment to card
 - `PUT /api/cards/:id/checklist/:itemIndex` - Update checklist item
+
+### Board Member Management Usage
+
+To add members to a board, follow these steps:
+
+1. **Search for users by username:**
+```javascript
+// Frontend code example
+const searchUsers = async (query) => {
+    const response = await fetch(`/api/users/search?query=${query}&limit=10`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    return response.json();
+};
+```
+
+2. **Add selected user to board:**
+```javascript
+const addMemberToBoard = async (boardId, userId) => {
+    const response = await fetch(`/api/boards/${boardId}/members`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId })
+    });
+    return response.json();
+};
+```
+
+3. **Frontend implementation example:**
+```javascript
+// Search and select user component
+const MemberSearch = ({ boardId, onMemberAdded }) => {
+    const [query, setQuery] = useState('');
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    const handleSearch = async (searchQuery) => {
+        if (searchQuery.length < 2) {
+            setUsers([]);
+            return;
+        }
+        
+        setLoading(true);
+        try {
+            const results = await searchUsers(searchQuery);
+            setUsers(results);
+        } catch (error) {
+            console.error('Search failed:', error);
+        }
+        setLoading(false);
+    };
+
+    const handleAddMember = async (userId) => {
+        try {
+            await addMemberToBoard(boardId, userId);
+            onMemberAdded();
+            setQuery('');
+            setUsers([]);
+        } catch (error) {
+            console.error('Failed to add member:', error);
+        }
+    };
+
+    return (
+        <div>
+            <input
+                type="text"
+                placeholder="Search users by username..."
+                value={query}
+                onChange={(e) => {
+                    setQuery(e.target.value);
+                    handleSearch(e.target.value);
+                }}
+            />
+            {loading && <div>Searching...</div>}
+            <div>
+                {users.map(user => (
+                    <div key={user._id} className="user-result">
+                        <span>{user.username} ({user.email})</span>
+                        <button onClick={() => handleAddMember(user._id)}>
+                            Add to Board
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+```
+
+### User Profile Management
+
+#### Update Username
+```javascript
+const updateUsername = async (newUsername) => {
+    const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ username: newUsername })
+    });
+    return response.json();
+};
+```
+
+#### Change Password
+```javascript
+const changePassword = async (currentPassword, newPassword) => {
+    const response = await fetch('/api/users/change-password', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+            currentPassword,
+            newPassword 
+        })
+    });
+    return response.json();
+};
+```
+
+#### Complete Profile Management Component Example
+```javascript
+const ProfileSettings = () => {
+    const [username, setUsername] = useState('');
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+
+    const handleUsernameUpdate = async () => {
+        try {
+            if (username.length < 3) {
+                alert('Username must be at least 3 characters');
+                return;
+            }
+            
+            const result = await updateUsername(username);
+            alert('Username updated successfully!');
+        } catch (error) {
+            alert('Failed to update username: ' + error.message);
+        }
+    };
+
+    const handlePasswordChange = async () => {
+        try {
+            if (newPassword.length < 6) {
+                alert('New password must be at least 6 characters');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('New passwords do not match');
+                return;
+            }
+            
+            const result = await changePassword(currentPassword, newPassword);
+            alert('Password changed successfully!');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (error) {
+            alert('Failed to change password: ' + error.message);
+        }
+    };
+
+    return (
+        <div>
+            {/* Username Update */}
+            <div>
+                <h3>Update Username</h3>
+                <input
+                    type="text"
+                    placeholder="New username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                />
+                <button onClick={handleUsernameUpdate}>Update Username</button>
+            </div>
+
+            {/* Password Change */}
+            <div>
+                <h3>Change Password</h3>
+                <input
+                    type="password"
+                    placeholder="Current password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+                <input
+                    type="password"
+                    placeholder="New password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button onClick={handlePasswordChange}>Change Password</button>
+            </div>
+        </div>
+    );
+};
+```
 
 ## Database Schema
 
