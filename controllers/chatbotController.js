@@ -33,13 +33,15 @@ const fetchDetailedBoards = async (userId) => {
 
 // Create detailed board context for AI
 const createDetailedBoardContext = (detailedBoards, user) => {
-    let context = `You are a focused Kanban task assistant. Your role is ONLY to help with task management, board organization, and project planning.
+    let context = `You are a friendly Kanban task assistant! Your role is ONLY to help with task management, board organization, and project planning.
 
 IMPORTANT RULES:
+- Give SHORT, FRIENDLY answers (2-3 sentences max)
 - ONLY answer questions about tasks, boards, projects, and productivity
 - If asked about anything else, say: "I only help with your Kanban tasks and boards. What would you like to know about your projects?"
-- Be helpful but concise
-- Reference specific tasks/boards when relevant`;
+- Be helpful, encouraging, and concise with a friendly tone
+- Reference specific tasks/boards when relevant
+- IGNORE completed tasks or tasks in "Done" columns - focus on active work only`;
     
     if (user) {
         context += `\n\nUser Information:
@@ -65,51 +67,68 @@ IMPORTANT RULES:
    - Created: ${new Date(board.createdAt).toLocaleDateString()}`;
 
             if (boardCardCount > 0) {
-                context += `\n   - Columns & Cards:`;
+                context += `\n   - Active Columns & Cards (excluding Done):`;
                 board.columns.forEach((column) => {
-                    if (column.cards.length > 0) {
-                        context += `\n     • ${column.title} (${column.cards.length} cards):`;
-                        column.cards.forEach((card) => {
-                            const dueDate = card.dueDate ? ` | Due: ${new Date(card.dueDate).toLocaleDateString()}` : '';
-                            const priority = card.priority ? ` | Priority: ${card.priority}` : '';
-                            const description = card.description ? ` | Desc: ${card.description.substring(0, 100)}${card.description.length > 100 ? '...' : ''}` : '';
-                            context += `\n       - "${card.title}"${priority}${dueDate}${description}`;
-                        });
+                    // Skip "Done" or completed columns
+                    const isDoneColumn = column.title.toLowerCase().includes('done') || 
+                                       column.title.toLowerCase().includes('complete') ||
+                                       column.title.toLowerCase().includes('finished');
+                    
+                    if (column.cards.length > 0 && !isDoneColumn) {
+                        const activeCards = column.cards.filter(card => !card.isCompleted);
+                        if (activeCards.length > 0) {
+                            context += `\n     • ${column.title} (${activeCards.length} active cards):`;
+                            activeCards.forEach((card) => {
+                                const dueDate = card.dueDate ? ` | Due: ${new Date(card.dueDate).toLocaleDateString()}` : '';
+                                const priority = card.priority ? ` | Priority: ${card.priority}` : '';
+                                const description = card.description ? ` | Desc: ${card.description.substring(0, 100)}${card.description.length > 100 ? '...' : ''}` : '';
+                                context += `\n       - "${card.title}"${priority}${dueDate}${description}`;
+                            });
+                        }
                     }
                 });
             }
         });
 
-        // Add summary statistics
+        // Add summary statistics (active tasks only)
         const priorityStats = detailedBoards.reduce((stats, board) => {
             board.columns.forEach(column => {
-                column.cards.forEach(card => {
-                    stats[card.priority] = (stats[card.priority] || 0) + 1;
-                });
+                // Skip "Done" or completed columns
+                const isDoneColumn = column.title.toLowerCase().includes('done') || 
+                                   column.title.toLowerCase().includes('complete') ||
+                                   column.title.toLowerCase().includes('finished');
+                
+                if (!isDoneColumn) {
+                    column.cards.forEach(card => {
+                        if (!card.isCompleted) {
+                            stats[card.priority] = (stats[card.priority] || 0) + 1;
+                        }
+                    });
+                }
             });
             return stats;
         }, {});
 
         if (Object.keys(priorityStats).length > 0) {
-            context += `\n\n**Task Priority Summary:**`;
+            context += `\n\n**Active Task Priority Summary:**`;
             Object.entries(priorityStats).forEach(([priority, count]) => {
-                context += `\n- ${priority}: ${count} cards`;
+                context += `\n- ${priority}: ${count} active cards`;
             });
         }
 
-        context += `\n\nYou can help with:
+        context += `\n\nI'm here to help you with:
 - Task prioritization and organization
-- Board structure optimization
+- Board structure optimization  
 - Project planning and deadlines
 - Workflow improvements`;
     } else {
-        context += `\n\nSince they're starting out, help with:
+        context += `\n\nGreat! Let's get you started! I can help with:
 - Board setup and organization
 - Task management basics
 - Getting organized efficiently`;
     }
 
-    context += `\n\nREMEMBER: Keep answers SHORT and FOCUSED. Only discuss Kanban, tasks, and productivity. Reference their specific data when helpful.`;
+    context += `\n\nREMEMBER: Keep answers SHORT, FRIENDLY, and FOCUSED. Only discuss Kanban, tasks, and productivity. Reference their active tasks when helpful, but ignore completed work.`;
 
     return context;
 };
