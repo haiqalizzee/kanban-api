@@ -10,6 +10,7 @@ const boardRoutes = require('./routes/boardRoutes');
 const columnRoutes = require('./routes/columnRoutes');
 const cardRoutes = require('./routes/cardRoutes');
 const userRoutes = require('./routes/userRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/boards', boardRoutes);
 app.use('/api/columns', columnRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -46,7 +48,8 @@ app.get('/', (req, res) => {
             boards: '/api/boards',
             columns: '/api/columns',
             cards: '/api/cards',
-            users: '/api/users'
+            users: '/api/users',
+            chatbot: '/api/chatbot'
         }
     });
 });
